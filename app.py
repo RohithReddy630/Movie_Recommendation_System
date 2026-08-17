@@ -2,9 +2,9 @@ import streamlit as st
 from recommender import movies, similarity
 
 
-# -------------------------------
-# Page Configuration
-# -------------------------------
+# =========================================================
+# PAGE CONFIGURATION
+# =========================================================
 
 st.set_page_config(
     page_title="Movie Recommendation System",
@@ -13,38 +13,58 @@ st.set_page_config(
 )
 
 
-# -------------------------------
-# Custom Styling
-# -------------------------------
+# =========================================================
+# CUSTOM CSS
+# =========================================================
 
 st.markdown("""
 <style>
+
 .main-title {
-    font-size: 42px;
-    font-weight: bold;
+    font-size: 46px;
+    font-weight: 800;
     text-align: center;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
 }
 
 .subtitle {
     text-align: center;
     font-size: 18px;
-    margin-bottom: 30px;
+    opacity: 0.8;
+    margin-bottom: 35px;
 }
 
 .movie-card {
     padding: 20px;
-    border-radius: 12px;
-    border: 1px solid #444;
+    border-radius: 15px;
+    border: 1px solid rgba(128,128,128,0.3);
     margin-bottom: 15px;
 }
+
+.rank {
+    font-size: 16px;
+    font-weight: bold;
+    opacity: 0.7;
+}
+
+.movie-title {
+    font-size: 22px;
+    font-weight: bold;
+}
+
+.info-box {
+    padding: 20px;
+    border-radius: 15px;
+    border: 1px solid rgba(128,128,128,0.3);
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 
-# -------------------------------
-# Title
-# -------------------------------
+# =========================================================
+# TITLE
+# =========================================================
 
 st.markdown(
     '<div class="main-title">🎬 Movie Recommendation System</div>',
@@ -52,22 +72,30 @@ st.markdown(
 )
 
 st.markdown(
-    '<div class="subtitle">'
-    'Find movies similar to your favorite movie using machine learning.'
-    '</div>',
+    """
+    <div class="subtitle">
+    Discover movies similar to your favorites using
+    Machine Learning and Natural Language Processing
+    </div>
+    """,
     unsafe_allow_html=True
 )
 
 
-# -------------------------------
-# Recommendation Function
-# -------------------------------
+# =========================================================
+# RECOMMENDATION FUNCTION
+# =========================================================
 
 def recommend(movie_title):
 
-    movie_index = movies[
+    movie_matches = movies[
         movies["title"] == movie_title
-    ].index[0]
+    ]
+
+    if movie_matches.empty:
+        return []
+
+    movie_index = movie_matches.index[0]
 
     similarity_scores = list(
         enumerate(similarity[movie_index])
@@ -82,71 +110,262 @@ def recommend(movie_title):
     recommendations = []
 
     for index, score in similarity_scores[1:6]:
+
+        movie_data = movies.iloc[index]
+
         recommendations.append({
-            "title": movies.iloc[index]["title"],
-            "score": score
+            "title": movie_data["title"],
+            "score": score,
+            "genres": movie_data["genres"],
+            "director": movie_data["director"],
+            "overview": movie_data["overview"]
         })
 
     return recommendations
 
 
-# -------------------------------
-# Movie Selection
-# -------------------------------
+# =========================================================
+# PROJECT STATISTICS
+# =========================================================
 
-st.subheader("🔎 Choose a Movie")
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric(
+        "🎥 Movies",
+        f"{len(movies):,}"
+    )
+
+with col2:
+    st.metric(
+        "🧠 Recommendation Method",
+        "Content-Based"
+    )
+
+with col3:
+    st.metric(
+        "📊 Similarity Method",
+        "Cosine"
+    )
+
+st.divider()
+
+
+# =========================================================
+# MOVIE SELECTION
+# =========================================================
+
+st.subheader("🔎 Find Similar Movies")
+
+movie_list = sorted(
+    movies["title"].dropna().unique()
+)
 
 selected_movie = st.selectbox(
-    "Select a movie from the list:",
-    movies["title"].values
+    "Choose a movie:",
+    movie_list
 )
 
 
-# -------------------------------
-# Recommendation Button
-# -------------------------------
+# =========================================================
+# SELECTED MOVIE INFORMATION
+# =========================================================
 
-if st.button("🎯 Recommend Movies", use_container_width=True):
+selected_data = movies[
+    movies["title"] == selected_movie
+].iloc[0]
+
+
+with st.expander("🎥 Selected Movie Information"):
+
+    col1, col2 = st.columns([1, 2])
+
+    with col1:
+
+        st.write("**Movie**")
+        st.write(selected_movie)
+
+        st.write("**Director**")
+        st.write(
+            selected_data["director"]
+            if selected_data["director"]
+            else "Not available"
+        )
+
+        st.write("**Genres**")
+
+        genres = selected_data["genres"]
+
+        if isinstance(genres, list):
+            st.write(", ".join(genres))
+        else:
+            st.write(genres)
+
+    with col2:
+
+        st.write("**Overview**")
+
+        overview = selected_data["overview"]
+
+        if overview:
+            st.write(overview)
+        else:
+            st.write("Overview not available.")
+
+
+# =========================================================
+# RECOMMENDATION BUTTON
+# =========================================================
+
+if st.button(
+    "🎯 Recommend Movies",
+    use_container_width=True,
+    type="primary"
+):
 
     recommendations = recommend(selected_movie)
 
-    st.subheader(
-        f"🍿 Movies similar to **{selected_movie}**"
-    )
+    if recommendations:
 
-    for i, movie in enumerate(recommendations, 1):
+        st.success(
+            f"Top recommendations based on **{selected_movie}**"
+        )
 
-        score = movie["score"] * 100
+        st.subheader("🍿 Recommended Movies")
 
-        st.markdown(
-            f"""
-            <div class="movie-card">
-                <h3>#{i} {movie["title"]}</h3>
-                <p>Similarity Score: <b>{score:.1f}%</b></p>
-            </div>
-            """,
-            unsafe_allow_html=True
+        for i, movie in enumerate(recommendations, 1):
+
+            score_percentage = movie["score"] * 100
+
+            with st.container(border=True):
+
+                col1, col2 = st.columns([3, 1])
+
+                with col1:
+
+                    st.markdown(
+                        f"### #{i} {movie['title']}"
+                    )
+
+                    genres = movie["genres"]
+
+                    if isinstance(genres, list):
+                        genres = ", ".join(genres)
+
+                    st.write(
+                        f"🎭 **Genres:** {genres}"
+                    )
+
+                    director = movie["director"]
+
+                    if director:
+                        st.write(
+                            f"🎬 **Director:** {director}"
+                        )
+
+                    overview = movie["overview"]
+
+                    if overview:
+                        st.write(
+                            f"📝 {overview}"
+                        )
+
+                with col2:
+
+                    st.metric(
+                        "Similarity",
+                        f"{score_percentage:.1f}%"
+                    )
+
+                    progress_value = min(
+                        max(float(movie["score"]), 0.0),
+                        1.0
+                    )
+
+                    st.progress(progress_value)
+
+    else:
+
+        st.error(
+            "Unable to generate recommendations."
         )
 
 
-# -------------------------------
-# About Section
-# -------------------------------
+# =========================================================
+# HOW IT WORKS
+# =========================================================
+
+st.divider()
+
+st.subheader("🧠 How It Works")
+
+step1, step2, step3, step4 = st.columns(4)
+
+with step1:
+    st.markdown("### 1️⃣ Data")
+    st.write(
+        "Movie metadata is collected from the TMDB dataset."
+    )
+
+with step2:
+    st.markdown("### 2️⃣ TF-IDF")
+    st.write(
+        "Movie information is converted into numerical vectors."
+    )
+
+with step3:
+    st.markdown("### 3️⃣ Similarity")
+    st.write(
+        "Cosine similarity compares movies based on their vectors."
+    )
+
+with step4:
+    st.markdown("### 4️⃣ Recommend")
+    st.write(
+        "The five most similar movies are returned."
+    )
+
+
+# =========================================================
+# ABOUT PROJECT
+# =========================================================
 
 st.divider()
 
 st.subheader("ℹ️ About This Project")
 
 st.write("""
-This project uses a content-based recommendation approach.
-Movie information such as genres, keywords, overview, cast and
-director is combined into a single feature representation.
+This project implements a **Content-Based Movie Recommendation
+System** using Machine Learning and Natural Language Processing.
 
-TF-IDF vectorization converts the movie descriptions into numerical
-vectors, and cosine similarity is used to identify movies with similar
-content.
+Movie genres, keywords, overview, cast and director information
+are combined to create a feature representation for each movie.
+
+**TF-IDF Vectorization** converts the textual information into
+numerical vectors. **Cosine Similarity** is then used to calculate
+the similarity between movies and generate recommendations.
 """)
 
+
+# =========================================================
+# TECHNOLOGIES
+# =========================================================
+
+st.subheader("🛠️ Technologies")
+
+st.write(
+    "Python • Pandas • NumPy • Scikit-learn • "
+    "TF-IDF • Cosine Similarity • Streamlit"
+)
+
+
+# =========================================================
+# FOOTER
+# =========================================================
+
+st.divider()
+
 st.caption(
-    "Built with Python • Pandas • Scikit-learn • Streamlit"
+    "🎬 Movie Recommendation System | "
+    "Machine Learning Project"
 )
